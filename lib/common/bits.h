@@ -172,4 +172,10 @@ MEM_STATIC unsigned ZSTD_highbit32(U32 val)   /* compress, dictBuilder, decodeCo
     return 31 - ZSTD_countLeadingZeros32(val);
 }
 
+MEM_STATIC unsigned ZSTD_highbit64(U64 val)   /* compress, dictBuilder, decodeCorpus */
+{
+    assert(val != 0);
+    return 63 - ZSTD_countLeadingZeros64(val);
+}
+
 #endif /* ZSTD_BITS_H */

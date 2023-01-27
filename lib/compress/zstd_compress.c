@@ -1610,8 +1610,7 @@ static size_t ZSTD_estimateCCtxSize_usingCCtxParams_internal(
     size_t const maxNbSeq = ZSTD_maxNbSeq(blockSize, cParams->minMatch, useExternalMatchFinder);
     size_t const tokenSpace = ZSTD_cwksp_alloc_size(WILDCOPY_OVERLENGTH + blockSize)
                             + ZSTD_cwksp_aligned_alloc_size(maxNbSeq * sizeof(seqDef))
-                            + 3 * ZSTD_cwksp_alloc_size(maxNbSeq * sizeof(BYTE))
-                            + 1; // longOffsets
+                            + 3 * ZSTD_cwksp_alloc_size(maxNbSeq * sizeof(BYTE));
     size_t const entropySpace = ZSTD_cwksp_alloc_size(ENTROPY_WORKSPACE_SIZE);
     size_t const blockStateSpace = 2 * ZSTD_cwksp_alloc_size(sizeof(ZSTD_compressedBlockState_t));
     size_t const matchStateSize = ZSTD_sizeof_matchState(cParams, useRowMatchFinder, /* enableDedicatedDictSearch */ 0, /* forCCtx */ 1);
@@ -2110,7 +2109,11 @@ static size_t ZSTD_resetCCtx_internal(ZSTD_CCtx* zc,
         zc->seqStore.llCode = ZSTD_cwksp_reserve_buffer(ws, maxNbSeq * sizeof(BYTE));
         zc->seqStore.mlCode = ZSTD_cwksp_reserve_buffer(ws, maxNbSeq * sizeof(BYTE));
         zc->seqStore.ofCode = ZSTD_cwksp_reserve_buffer(ws, maxNbSeq * sizeof(BYTE));
-        zc->seqStore.longOffsets = ZSTD_cwksp_reserve_buffer(ws, sizeof(BYTE));
+        {
+            const size_t dictSize = zc->cdict ? zc->cdict->dictContentSize : loadedDictSize;
+            const size_t dictLog = dictSize ? (MEM_32bits() ? ZSTD_highbit32(dictSize) : ZSTD_highbit64(dictSize)) : 0;
+            zc->seqStore.longOffsets = params->cParams.windowLog >= STREAM_ACCUMULATOR_MIN || dictLog >= STREAM_ACCUMULATOR_MIN;
+        }
         zc->seqStore.sequencesStart = (seqDef*)ZSTD_cwksp_reserve_aligned(ws, maxNbSeq * sizeof(seqDef));
 
         FORWARD_IF_ERROR(ZSTD_reset_matchState(
@@ -2569,7 +2572,6 @@ void ZSTD_seqToCodes(const seqStore_t* seqStorePtr)
     BYTE* const mlCodeTable = seqStorePtr->mlCode;
     U32 const nbSeq = (U32)(seqStorePtr->sequences - seqStorePtr->sequencesStart);
     U32 u;
-    uint8_t longOffsets = 0;
     assert(nbSeq <= seqStorePtr->maxNbSeq);
     for (u=0; u<nbSeq; u++) {
         U32 const llv = sequences[u].litLength;
@@ -2578,13 +2580,11 @@ void ZSTD_seqToCodes(const seqStore_t* seqStorePtr)
         llCodeTable[u] = (BYTE)ZSTD_LLcode(llv);
         ofCodeTable[u] = (BYTE)ofCode;
         mlCodeTable[u] = (BYTE)ZSTD_MLcode(mlv);
-        longOffsets |= (ofCode >= STREAM_ACCUMULATOR_MIN);
     }
     if (seqStorePtr->longLengthType==ZSTD_llt_literalLength)
         llCodeTable[seqStorePtr->longLengthPos] = MaxLL;
     if (seqStorePtr->longLengthType==ZSTD_llt_matchLength)
         mlCodeTable[seqStorePtr->longLengthPos] = MaxML;
-    *(seqStorePtr->longOffsets) = longOffsets;
 }
 
 /* ZSTD_useTargetCBlockSize():
@@ -2839,7 +2839,7 @@ ZSTD_entropyCompressSeqStore_internal(
         op += stats.size;
     }
 
-    {   const int longOffsets = *(seqStorePtr->longOffsets);
+    {   const int longOffsets = seqStorePtr->longOffsets;
         size_t const bitstreamSize = ZSTD_encodeSequences(
                                         op, (size_t)(oend - op),
                                         CTable_MatchLength, mlCodeTable,
