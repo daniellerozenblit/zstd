@@ -21,7 +21,8 @@
 #endif
 
 #ifndef ZSTDCLI_NBTHREADS_DEFAULT
-#  define ZSTDCLI_NBTHREADS_DEFAULT 1
+#define ZSTDCLI_NBTHREADS_DEFAULT                                              \
+  UTIL_countLogicalCores() / 4 > 4 ? 4 : UTIL_countLogicalCores() / 4
 #endif
 
 /*-************************************
