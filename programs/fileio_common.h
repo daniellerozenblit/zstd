@@ -28,11 +28,14 @@ extern "C" {
 #define GB *(1U<<30)
 #undef MAX
 #define MAX(a,b) ((a)>(b) ? (a) : (b))
+#undef MIN  /* in case it would be already defined */
+#define MIN(a,b)    ((a) < (b) ? (a) : (b))
 
 extern FIO_display_prefs_t g_display_prefs;
 
-#define DISPLAY(...)         fprintf(stderr, __VA_ARGS__)
-#define DISPLAYOUT(...)      fprintf(stdout, __VA_ARGS__)
+#define DISPLAY_F(f, ...)    fprintf((f), __VA_ARGS__)
+#define DISPLAYOUT(...)      DISPLAY_F(stdout, __VA_ARGS__)
+#define DISPLAY(...)         DISPLAY_F(stderr, __VA_ARGS__)
 #define DISPLAYLEVEL(l, ...) { if (g_display_prefs.displayLevel>=l) { DISPLAY(__VA_ARGS__); } }
 
 extern UTIL_time_t g_displayClock;
@@ -55,10 +58,6 @@ extern UTIL_time_t g_displayClock;
 #define DISPLAY_PROGRESS(...) { if (SHOULD_DISPLAY_PROGRESS()) { DISPLAYLEVEL(1, __VA_ARGS__); }}
 #define DISPLAYUPDATE_PROGRESS(...) { if (SHOULD_DISPLAY_PROGRESS()) { DISPLAYUPDATE(1, __VA_ARGS__); }}
 #define DISPLAY_SUMMARY(...) { if (SHOULD_DISPLAY_SUMMARY()) { DISPLAYLEVEL(1, __VA_ARGS__); } }
-
-#undef MIN  /* in case it would be already defined */
-#define MIN(a,b)    ((a) < (b) ? (a) : (b))
-
 
 #define EXM_THROW(error, ...)                                             \
 {                                                                         \
