@@ -784,6 +784,17 @@ test -f tmpOutDirDecomp/tmp2
 test -f tmpOutDirDecomp/tmp1
 rm -rf tmp*
 
+if [ "$isWindows" = true ] ; then
+    println "test : --output-dir-flat detects file names differing only by case"
+    mkdir tmpDir1 tmpDir2 tmpOutDir
+    println first > tmpDir1/A
+    println middle > tmpDir1/B
+    println second > tmpDir2/a
+    zstd -f --output-dir-flat tmpOutDir tmpDir1/A tmpDir1/B tmpDir2/a && die "case collision should fail"
+    test ! -f tmpOutDir/a.zst
+    rm -rf tmp*
+fi
+
 if [ "$isWindows" = false ] ; then
     println "\n===>  compress multiple files into an output directory and mirror input folder, --output-dir-mirror"
     println "test --output-dir-mirror" > tmp1

@@ -1186,6 +1186,17 @@ static void FIO_initDict(FIO_Dict_t* dict, const char* fileName, FIO_prefs_t* co
 }
 
 
+static int FIO_compareFilenames(const void* p1, const void* p2)
+{
+    const char* const name1 = *(const char* const*)p1;
+    const char* const name2 = *(const char* const*)p2;
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined (__MSVCRT__) /* windows support */
+    return _stricmp(name1, name2);  /* file names are case-insensitive on Windows */
+#else
+    return strcmp(name1, name2);
+#endif
+}
+
 /* FIO_checkFilenameCollisions() :
  * Checks for files that would have the same output path.
  * NULL entries in filenameTable are ignored.
@@ -1205,6 +1216,12 @@ int FIO_checkFilenameCollisions(const char* const* filenameTable, unsigned nbFil
     for (u = 0; u < nbFiles; ++u) {
         if (filenameTable[u] == NULL) continue;
         filename = strrchr(filenameTable[u], PATH_SEP);
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined (__MSVCRT__) /* windows support */
+        {   /* '/' is also a separator on Windows */
+            const char* const slash = strrchr(filename ? filename : filenameTable[u], '/');
+            if (slash != NULL) filename = slash;
+        }
+#endif
         if (filename == NULL) {
             filenameTableSorted[nbNames++] = filenameTable[u];
         } else {
@@ -1212,10 +1229,10 @@ int FIO_checkFilenameCollisions(const char* const* filenameTable, unsigned nbFil
         }
     }
 
-    qsort((void*)filenameTableSorted, nbNames, sizeof(char*), UTIL_compareStr);
+    qsort((void*)filenameTableSorted, nbNames, sizeof(char*), FIO_compareFilenames);
     for (u = 1; u < nbNames; ++u) {
         const char* const prevElem = filenameTableSorted[u-1];
-        if (strcmp(prevElem, filenameTableSorted[u]) == 0) {
+        if (FIO_compareFilenames(&filenameTableSorted[u-1], &filenameTableSorted[u]) == 0) {
             DISPLAYLEVEL(1, "zstd: %s: multiple input files map to the same output file name\n", prevElem);
             collision = 1;
         }
